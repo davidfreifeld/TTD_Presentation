@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Movie Genre Analysis</title>
+  <meta charset="utf-8">
+  <meta name="description" content="Movie Genre Analysis">
+  <meta name="author" content="David Freifeld">
+  <meta name="generator" content="slidify" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/default.css" media="all" >
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/phone.css" 
+    media="only screen and (max-device-width: 480px)" >
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/slidify.css" >
+  <link rel="stylesheet" href="libraries/highlighters/highlight.js/css/tomorrow.css" />
+  <base target="_blank"> <!-- This amazingness opens all links in a new tab. -->  
+  
+  <!-- Grab CDN jQuery, fall back to local if offline -->
+  <script src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.min.js"></script>
+  <script>window.jQuery || document.write('<script src="libraries/widgets/quiz/js/jquery.js"><\/script>')</script> 
+  <script data-main="libraries/frameworks/io2012/js/slides" 
+    src="libraries/frameworks/io2012/js/require-1.0.8.min.js">
+  </script>
+  
+  
+
+</head>
+<body style="opacity: 0">
+  <slides class="layout-widescreen">
+    
+    <!-- LOGO SLIDE -->
+        <slide class="title-slide segue nobackground">
+  <hgroup class="auto-fadein">
+    <h1>Movie Genre Analysis</h1>
+    <h2>Using Web History Data</h2>
+    <p>David Freifeld<br/></p>
+  </hgroup>
+  <article></article>  
+</slide>
+    
+
+    <!-- SLIDES -->
+    <slide class="" id="slide-1" style="background:;">
+  <hgroup>
+    <h2>Getting and Cleaning Data</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Read in the data file and examine its contents</li>
+</ul>
+
+<pre><code class="r">impData &lt;- read.table(&quot;ImpData.txt&quot;, header=T, sep=&#39;\t&#39;, 
+        na.strings=&#39;(null)&#39;, quote=&quot;&quot;)
+nrow(impData)
+</code></pre>
+
+<pre><code>## [1] 129577
+</code></pre>
+
+<pre><code class="r">colnames(impData)
+</code></pre>
+
+<pre><code>##  [1] &quot;tdid&quot;               &quot;logentrytime&quot;       &quot;logfileid&quot;         
+##  [4] &quot;site&quot;               &quot;userHourOfWeek&quot;     &quot;country&quot;           
+##  [7] &quot;region&quot;             &quot;metro&quot;              &quot;city&quot;              
+## [10] &quot;devicetype&quot;         &quot;osfamily&quot;           &quot;os&quot;                
+## [13] &quot;browser&quot;            &quot;FavoriteMovieGenre&quot;
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-2" style="background:;">
+  <hgroup>
+    <h2>Format/Consolidate URL&#39;s</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">length(levels(impData$site))
+</code></pre>
+
+<pre><code>## [1] 8414
+</code></pre>
+
+<ul>
+<li>Remove the leading &quot;www&quot; and mark &quot;site-not-provided&quot; sites as NA.</li>
+</ul>
+
+<pre><code class="r">impData$site &lt;- as.character(impData$site)
+impData$site &lt;- sub(&quot;^www\\.(.*)&quot;, &quot;\\1&quot;, impData$site)
+impData$site[grepl(&quot;.*\\.site-not-provided&quot;, impData$site)] &lt;- NA
+impData$site &lt;- factor(impData$site)
+length(levels(impData$site))
+</code></pre>
+
+<pre><code>## [1] 7444
+</code></pre>
+
+<ul>
+<li>Removed about 1,000 unique URL&#39;s. </li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-3" style="background:;">
+  <hgroup>
+    <h2>Site Classification</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Used natural language processing tool from uclassify.com to categorize all of the URL&#39;s in the dataset.</li>
+<li>Excerpt of Python code used below (entire file can be found on Github):</li>
+</ul>
+
+<pre><code class="python">def getSiteClassificationData(apiKey, classifierName, url):
+    requestURL = &quot;http://uclassify.com/browse/uClassify/Topics/ClassifyUrl?readkey=&quot; + \
+        apiKey + &quot;&amp;url=&quot; + url + &quot;&amp;version=1.01&quot;
+    try:
+        myFile = urllib2.urlopen(requestURL)
+        data = myFile.read()
+        myFile.close()
+        dataDict = xmltodict.parse(data)
+        return dataDict
+    except urllib2.HTTPError:
+        print &quot;Error for url &quot; + url
+        return {}
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-4" style="background:;">
+  <hgroup>
+    <h2>Site Classification</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>uclassify.com&#39;s API returns a probability for each of ten categories based on the text on the page provided:</p>
+
+<pre><code class="r">siteData &lt;- read.csv(&#39;categories.csv&#39;, stringsAsFactors=F)
+colnames(siteData)
+</code></pre>
+
+<pre><code>##  [1] &quot;URL&quot;        &quot;Arts&quot;       &quot;Business&quot;   &quot;Science&quot;    &quot;Computers&quot; 
+##  [6] &quot;Recreation&quot; &quot;Sports&quot;     &quot;Society&quot;    &quot;Health&quot;     &quot;Home&quot;      
+## [11] &quot;Games&quot;
+</code></pre>
+
+<pre><code class="r">knitr::kable(siteData[1:4,1:5])
+</code></pre>
+
+<table><thead>
+<tr>
+<th align="left">URL</th>
+<th align="right">Arts</th>
+<th align="right">Business</th>
+<th align="right">Science</th>
+<th align="right">Computers</th>
+</tr>
+</thead><tbody>
+<tr>
+<td align="left">us.msn.com</td>
+<td align="right">0.340712</td>
+<td align="right">0.0257158</td>
+<td align="right">0.0134926</td>
+<td align="right">0.009882</td>
+</tr>
+<tr>
+<td align="left">answers.com</td>
+<td align="right">0.101944</td>
+<td align="right">0.0811187</td>
+<td align="right">0.0308013</td>
+<td align="right">0.317147</td>
+</tr>
+<tr>
+<td align="left">yahoonetplus.com</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">everquest.allakhazam.com</td>
+<td align="right">0.103094</td>
+<td align="right">0.0295731</td>
+<td align="right">0.0160058</td>
+<td align="right">0.306243</td>
+</tr>
+</tbody></table>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-5" style="background:;">
+  <hgroup>
+    <h2>Site Classification</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>Determine the category of each URL, but only if uclassify is confident above some threshold that the site falls into that category.</p>
+
+<pre><code class="r"># Merge the two data sets using the site/URL as the key
+impData &lt;- merge(x = impData, y = siteData, by.x = &#39;site&#39;, by.y = &#39;URL&#39;, all.x = T)
+
+impData$sitecategory &lt;- &quot;Unclassified&quot;
+maxSiteScores &lt;- apply(impData[14:23],1,max)
+
+# Determine the category, only if the confidence is above 90%
+threshold &lt;- 0.9
+impData$sitecategory[!is.na(maxSiteScores) &amp; maxSiteScores &gt; threshold] &lt;- 
+    colnames(impData[14:23])[
+        apply(impData[!is.na(maxSiteScores) &amp; maxSiteScores &gt; threshold, 
+            c(14:23)], 1, which.max)]
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-6" style="background:;">
+  <hgroup>
+    <h2>Transforming Timestamp Data</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">bHourNA &lt;- is.na(impData$userHourOfWeek)
+
+# Get the hour of the day (0-23) by taking mod 24
+impData$userHourOfDay &lt;- impData$userHourOfWeek %% 24
+
+# The hours of 12AM to 4AM are really &quot;late night&quot; the previous day
+weeHours &lt;- impData$userHourOfDay &lt; 5 &amp; !bHourNA
+normHours &lt;- impData$userHourOfDay &gt;= 5 &amp; !bHourNA
+
+# Shift the hours of the day and day of the week to account for this
+impData$userHourOfDay[weeHours] &lt;- impData$userHourOfDay[weeHours] + 19
+impData$userHourOfDay[normHours] &lt;- impData$userHourOfDay[normHours] - 5
+
+impData$userDayOfWeek &lt;- impData$userHourOfWeek %/% 24
+impData$userDayOfWeek[weeHours] &lt;- impData$userDayOfWeek[weeHours] - 1
+impData$userDayOfWeek[impData$userDayOfWeek == -1] &lt;- 6
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-7" style="background:;">
+  <hgroup>
+    <h2>Transforming Timestamp Data</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/fig/unnamed-chunk-11-1.png" title="plot of chunk unnamed-chunk-11" alt="plot of chunk unnamed-chunk-11" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-8" style="background:;">
+  <hgroup>
+    <h2>Transforming Timestamp Data</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">impData$userPeriodOfWeek &lt;- factor(impData$userPeriodOfWeek, labels = c(&quot;SundayMorn&quot;,
+                                 &quot;SundayAft&quot;, &quot;SundayEve&quot;, &quot;SundayLate&quot;, &quot;WeekdayMorn&quot;,
+                                 &quot;WeekdayAft&quot;, &quot;WeekdayEve&quot;, &quot;WeekdayLate&quot;,
+                                 &quot;SaturdayMorn&quot;, &quot;SaturdayAft&quot;, &quot;SaturdayEve&quot;, 
+                                 &quot;SaturdayLate&quot;))
+impData$userDayOfWeek &lt;- factor(impData$userDayOfWeek, labels = c(&quot;Sunday&quot;, 
+                                 &quot;Monday&quot;, &quot;Tuesday&quot;, &quot;Wednesday&quot;, &quot;Thursday&quot;, 
+                                 &quot;Friday&quot;, &quot;Saturday&quot;))
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-9" style="background:;">
+  <hgroup>
+    <h2>United States Regions</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Use state data to map the impression to one of the four US Regions</li>
+</ul>
+
+<pre><code class="r">impData$usa &lt;- as.character(impData$country) == &quot;United States&quot;
+
+data(state)
+impData$usregion &lt;- sapply(as.character(impData$region), function(x) 
+    as.character(state.region[pmatch(x, state.name)]))
+
+impData$usregion[impData$region == &quot;District of Columbia&quot;] &lt;- &quot;Northeast&quot;
+impData$usregion[!is.na(impData$usa) &amp; !impData$usa] &lt;- &quot;International&quot;
+impData$usregion &lt;- factor(impData$usregion)
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-10" style="background:;">
+  <hgroup>
+    <h2>United States Regions</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/fig/unnamed-chunk-16-1.png" title="plot of chunk unnamed-chunk-16" alt="plot of chunk unnamed-chunk-16" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-11" style="background:;">
+  <hgroup>
+    <h2>Summarizing the Impressions Per User</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Accomplished using the plyr package in R</li>
+<li>Most features are constant per user across impressions (country, os, etc.)</li>
+<li>Time and website url are the two features that vary greatly across impressions</li>
+</ul>
+
+<pre><code class="r"># we&#39;ll use this function to summarize data by user
+Mode &lt;&lt;- function(x) {
+    xtable &lt;- table(x)
+    if (sum(xtable))
+        return(names(which.max(table(x))))
+    else 
+        return(NA)
+}
+
+userData &lt;- ddply(impData, .(tdid), summarize,
+    country = Mode(country),
+    region = Mode(region),
+    metro = Mode(metro),
+    city = Mode(city),
+    devicetype = Mode(devicetype),
+    osfamily = Mode(osfamily),
+    os = Mode(os),
+    browser = Mode(browser),
+    FavoriteMovieGenre = Mode(FavoriteMovieGenre),
+    usregion = Mode(usregion),
+    usa = sum(usa, na.rm=T) / sum(!is.na(usa)) &gt; 0.5,
+    SundayMorn = sum(userPeriodOfWeek == &quot;SundayMorn&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    SundayAft = sum(userPeriodOfWeek == &quot;SundayAft&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    SundayEve = sum(userPeriodOfWeek == &quot;SundayEve&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    SundayLate = sum(userPeriodOfWeek == &quot;SundayLate&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    WeekdayMorn = sum(userPeriodOfWeek == &quot;WeekdayMorn&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek))/5,
+    WeekdayAft = sum(userPeriodOfWeek == &quot;WeekdayAft&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek))/5,
+    WeekdayEve = sum(userPeriodOfWeek == &quot;WeekdayEve&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek))/5,
+    WeekdayLate = sum(userPeriodOfWeek == &quot;WeekdayLate&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek))/5,
+    SaturdayMorn = sum(userPeriodOfWeek == &quot;SaturdayMorn&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    SaturdayAft = sum(userPeriodOfWeek == &quot;SaturdayAft&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    SaturdayEve = sum(userPeriodOfWeek == &quot;SaturdayEve&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    SaturdayLate = sum(userPeriodOfWeek == &quot;SaturdayLate&quot;, na.rm=T)/sum(!is.na(userPeriodOfWeek)),
+    bArts = &quot;Arts&quot; %in% sitecategory,
+    bBusiness = &quot;Business&quot; %in% sitecategory,
+    bScience = &quot;Science&quot; %in% sitecategory,
+    bComputers = &quot;Computers&quot; %in% sitecategory,
+    bRecreation = &quot;Recreation&quot; %in% sitecategory,
+    bSports = &quot;Sports&quot; %in% sitecategory,
+    bSociety = &quot;Society&quot; %in% sitecategory,
+    bHealth = &quot;Health&quot; %in% sitecategory,
+    bHome = &quot;Home&quot; %in% sitecategory,
+    bGames = &quot;Games&quot; %in% sitecategory
+)
+rownames(userData) &lt;- userData$tdid
+userData[2:11] &lt;- as.data.frame(lapply(userData[2:11], factor))
+
+userData$usregion[userData$usa == &quot;TRUE&quot; &amp; is.na(userData$usregion)] &lt;- &quot;South&quot;
+
+# impute the medians for the periodOfWeek vars
+userData &lt;- transform(userData, 
+    SundayMorn = ifelse(is.na(SundayMorn), median(SundayMorn, na.rm=TRUE), SundayMorn),
+    SundayAft = ifelse(is.na(SundayAft), median(SundayAft, na.rm=TRUE), SundayAft),
+    SundayEve = ifelse(is.na(SundayEve), median(SundayEve, na.rm=TRUE), SundayEve),
+    SundayLate = ifelse(is.na(SundayLate), median(SundayLate, na.rm=TRUE), SundayLate),
+    WeekdayMorn = ifelse(is.na(WeekdayMorn), median(WeekdayMorn, na.rm=TRUE), WeekdayMorn),
+    WeekdayAft = ifelse(is.na(WeekdayAft), median(WeekdayAft, na.rm=TRUE), WeekdayAft),
+    WeekdayEve = ifelse(is.na(WeekdayEve), median(WeekdayEve, na.rm=TRUE), WeekdayEve),
+    WeekdayLate = ifelse(is.na(WeekdayLate), median(WeekdayLate, na.rm=TRUE), WeekdayLate),
+    SaturdayMorn = ifelse(is.na(SaturdayMorn), median(SaturdayMorn, na.rm=TRUE), SaturdayMorn),
+    SaturdayAft = ifelse(is.na(SaturdayAft), median(SaturdayAft, na.rm=TRUE), SaturdayAft),
+    SaturdayEve = ifelse(is.na(SaturdayEve), median(SaturdayEve, na.rm=TRUE), SaturdayEve),
+    SaturdayLate = ifelse(is.na(SaturdayLate), median(SaturdayLate, na.rm=TRUE), SaturdayLate)
+)
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-12" style="background:;">
+  <hgroup>
+    <h2>Summarize Sites by Favorite Movie Genre</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">userSiteCounts &lt;- ddply(impData[impData$FavoriteMovieGenre != &quot;?????&quot;,],
+    .(tdid, site), summarize, count = length(FavoriteMovieGenre),
+    FavoriteMovieGenre = FavoriteMovieGenre[1])
+
+siteGenreCounts &lt;- ddply(userSiteCounts, .(site, FavoriteMovieGenre),
+    summarize, count = length(count))
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-13" style="background:;">
+  <hgroup>
+    <h2>Split Data by Whether Genre is Known/Unknown</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">userData$FavoriteMovieGenre &lt;- as.character(userData$FavoriteMovieGenre)
+userData$tdid &lt;- as.character(userData$tdid)
+
+userKnown &lt;- subset(userData, FavoriteMovieGenre != &quot;?????&quot;)
+userKnown$FavoriteMovieGenre &lt;- factor(userKnown$FavoriteMovieGenre)
+userKnown$tdid &lt;- factor(userKnown$tdid)
+
+userUnknown &lt;- subset(userData, FavoriteMovieGenre == &quot;?????&quot;)
+userUnknown$FavoriteMovieGenre &lt;- NULL
+userUnknown$tdid &lt;- factor(userUnknown$tdid)
+
+userData$tdid &lt;- factor(userData$tdid)
+userData$FavoriteMovieGenre &lt;- factor(userData$FavoriteMovieGenre)
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-14" style="background:;">
+  <hgroup>
+    <h2>Exploratory Analysis</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/fig/unnamed-chunk-20-1.png" title="plot of chunk unnamed-chunk-20" alt="plot of chunk unnamed-chunk-20" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-15" style="background:;">
+  <hgroup>
+    <h2>Exploratory Analysis</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/fig/unnamed-chunk-21-1.png" title="plot of chunk unnamed-chunk-21" alt="plot of chunk unnamed-chunk-21" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-16" style="background:;">
+  <hgroup>
+    <h2>Exploratory Analysis</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/fig/unnamed-chunk-22-1.png" title="plot of chunk unnamed-chunk-22" alt="plot of chunk unnamed-chunk-22" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-17" style="background:;">
+  <hgroup>
+    <h2>Blinded Genre Guesses</h2>
+  </hgroup>
+  <article data-timings="">
+    <ol>
+<li>Action/Adventure</li>
+<li>Animated Movies</li>
+<li>Comedy</li>
+<li>Drama</li>
+<li>Documentaries</li>
+</ol>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-18" style="background:;">
+  <hgroup>
+    <h2>BlindedGenre1: Action/Adventure</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Most popular favorite genre in the United States</li>
+<li>Not nearly as popular in other countries</li>
+<li>If a user has visited a &#39;Home&#39; site, much less likely to like BlindedGenre1:</li>
+</ul>
+
+<p><img src="assets/fig/unnamed-chunk-23-1.png" title="plot of chunk unnamed-chunk-23" alt="plot of chunk unnamed-chunk-23" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-19" style="background:;">
+  <hgroup>
+    <h2>BlindedGenre2: Animated Movies</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Thesis: BlindedGenre2 is likely Animated Movies because it includes both children and parents.</li>
+<li>Children
+
+<ul>
+<li>Spike at 3pm - children arriving home from school</li>
+<li>Much higher likelihood that a genre 2 user was using a mobile or tablet device</li>
+</ul></li>
+<li>Parents:</li>
+</ul>
+
+<pre><code class="r">bg2 &lt;- siteGenreCounts[!is.na(siteGenreCounts$site) &amp; siteGenreCounts$FavoriteMovieGenre == &quot;BlindedGenre2&quot;,]
+head(as.character(bg2[order(bg2$count, decreasing=T),&quot;site&quot;]), n = 20)
+</code></pre>
+
+<pre><code>##  [1] &quot;answers.com&quot;        &quot;yahoonetplus.com&quot;   &quot;us.msn.com&quot;        
+##  [4] &quot;simplyrecipes.com&quot;  &quot;youtube.com&quot;        &quot;news.yahoo.com&quot;    
+##  [7] &quot;huffingtonpost.com&quot; &quot;walmart.com&quot;        &quot;ebay.com&quot;          
+## [10] &quot;cafemom.com&quot;        &quot;cnn.com&quot;            &quot;dailymail.co.uk&quot;   
+## [13] &quot;likes.com&quot;          &quot;m.webmd.com&quot;        &quot;inquisitr.com&quot;     
+## [16] &quot;outlook.com&quot;        &quot;sbnation.com&quot;       &quot;yahoo.com&quot;         
+## [19] &quot;allrecipes.com&quot;     &quot;aol.com&quot;
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-20" style="background:;">
+  <hgroup>
+    <h2>BlindedGenre3: Comedy</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Most popular genre in the non-US countries
+
+<ul>
+<li>Especially France (all but one French user chose BlindedGenre3)</li>
+</ul></li>
+<li>Spikes at both 9AM and 3pm
+
+<ul>
+<li>A genre appreciated by both children and adults</li>
+</ul></li>
+</ul>
+
+<p><img src="assets/fig/unnamed-chunk-25-1.png" title="plot of chunk unnamed-chunk-25" alt="plot of chunk unnamed-chunk-25" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-21" style="background:;">
+  <hgroup>
+    <h2>BlindedGenre4: Drama</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Slightly more popular in the South, and among users who visited foxnews.com
+
+<ul>
+<li>More conservative users might prefer a drama versus comedy, animated, action/adventure etc.</li>
+</ul></li>
+<li>Fourth most popular genre among US users
+
+<ul>
+<li>Process of elimination</li>
+</ul></li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-22" style="background:;">
+  <hgroup>
+    <h2>BlindedGenre5: Documentaries</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Spike at 9AM - Adults leaving for work</li>
+<li>Top sites include technology-related/&quot;nerdy&quot; sites such as &quot;phandroid.com,&quot; &quot;phonearena.com,&quot; &quot;bbc.com,&quot; &quot;howtogeek.com&quot;</li>
+<li>Second guess would be Sci-Fi</li>
+</ul>
+
+<pre><code class="r">bg5 &lt;- siteGenreCounts[!is.na(siteGenreCounts$site) &amp; siteGenreCounts$FavoriteMovieGenre == &quot;BlindedGenre5&quot;,]
+head(as.character(bg5[order(bg5$count, decreasing=T),&quot;site&quot;]), n = 24)
+</code></pre>
+
+<pre><code>##  [1] &quot;yahoonetplus.com&quot;     &quot;us.msn.com&quot;           &quot;answers.com&quot;         
+##  [4] &quot;youtube.com&quot;          &quot;cafemom.com&quot;          &quot;checkthisyo.com&quot;     
+##  [7] &quot;phandroid.com&quot;        &quot;phonearena.com&quot;       &quot;s-cdn.phonearena.com&quot;
+## [10] &quot;sports.yahoo.com&quot;     &quot;weather.com&quot;          &quot;aol.com&quot;             
+## [13] &quot;bbc.com&quot;              &quot;bgr.com&quot;              &quot;brainjet.com&quot;        
+## [16] &quot;cosmopolitan.com&quot;     &quot;dailymail.co.uk&quot;      &quot;ebay.com&quot;            
+## [19] &quot;ebdr2.com&quot;            &quot;egokick.com&quot;          &quot;firstpost.com&quot;       
+## [22] &quot;homeaway.com&quot;         &quot;howtogeek.com&quot;        &quot;huffingtonpost.com&quot;
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-23" style="background:;">
+  <hgroup>
+    <h2>Clustering Web Sites by User Overlap</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">siteOverlapMat &lt;- as.matrix(read.csv(&#39;siteOverlapMat.csv&#39;, row.names=1))
+colnames(siteOverlapMat) &lt;- rownames(siteOverlapMat)
+
+maxOverlap &lt;- max(siteOverlapMat) + 1
+siteDistMat &lt;- (maxOverlap - siteOverlapMat)^2
+siteDist &lt;- as.dist(siteDistMat)
+
+# Set this to get number of clusters
+k = 10
+pamSite &lt;- pam(siteDist, k)
+
+# append the clusters to the data set
+impData$sitecluster &lt;- factor(sapply(as.character(impData$site), function(x) {
+    if (is.na(x)) NA
+    else          pamSite$clustering[[x]] }))
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-24" style="background:;">
+  <hgroup>
+    <h2>Clustering Web Sites by User Overlap</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/fig/unnamed-chunk-29-1.png" title="plot of chunk unnamed-chunk-29" alt="plot of chunk unnamed-chunk-29" style="display: block; margin: auto;" /></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-25" style="background:;">
+  <hgroup>
+    <h2>Building a Predictive Model</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Model had to fit <em>users</em>, not impressions</li>
+<li>Cross-validated a classification tree model </li>
+<li>Chose from all of the summary variables</li>
+<li>Best model only uses two variables: is the user in the US, and is she on a PC</li>
+<li>Out of sample accuracy is about 45%</li>
+</ul>
+
+<pre><code class="r">numFolds = trainControl( method = &quot;cv&quot;, number = 10 )
+
+# the range of complexity parameters to try
+cpGrid = expand.grid( .cp = seq(0.001,0.026,0.005)) 
+
+# train the model using cross-validation
+treeMod &lt;- train(FavoriteMovieGenre ~ ., data = userKnown,
+    method=&#39;rpart&#39;, trControl = numFolds, tuneGrid = cpGrid)
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-26" style="background:;">
+  <hgroup>
+    <h2>Building a Predictive Model</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">prp(treeMod$finalModel, varlen=0)
+</code></pre>
+
+<p><img src="assets/fig/unnamed-chunk-33-1.png" alt="plot of chunk unnamed-chunk-33"> </p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-27" style="background:;">
+  <hgroup>
+    <h2>How Could the Model Be Improved?</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>More data 
+
+<ul>
+<li>Currently, the best model for prediction is a high bias (i.e. underfit) model</li>
+<li>The reason that a high variance (i.e. overfit) model cannot work is that there is not enough data</li>
+<li>More data could lead to a more complicated tree that can still predict well</li>
+</ul></li>
+<li>A better algorithm for classifying websites</li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-28" style="background:;">
+  <hgroup>
+    <h2>Finding Best Friends</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>Required
+
+<ul>
+<li>same Favorite Movie Genre</li>
+<li>speak the same language</li>
+</ul></li>
+<li>Main metric
+
+<ul>
+<li>high number of overlapping visited sites</li>
+<li>also high <strong>proportion</strong> of overlapping visited sites</li>
+</ul></li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-29" style="background:;">
+  <hgroup>
+    <h2>Finding Best Friends</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">userSiteGenreKnown &lt;- na.omit(ddply(impData[impData$FavoriteMovieGenre != &quot;?????&quot;,],
+    .(tdid, site), summarize, FavoriteMovieGenre = FavoriteMovieGenre[1]))
+</code></pre>
+
+<pre><code class="r">mergedUserSite &lt;- merge(x=userSiteGenreKnown, y=userSiteGenreKnown, by=c(&quot;site&quot;, &quot;FavoriteMovieGenre&quot;), all = T)
+mergedUserSite &lt;- mergedUserSite[mergedUserSite$tdid.x != mergedUserSite$tdid.y,]
+</code></pre>
+
+<pre><code class="r">userSplits &lt;- split(as.character(mergedUserSite$tdid.x), mergedUserSite$tdid.y)
+numUsers &lt;- length(userSplits)
+userOverlapMat &lt;- matrix(rep(0, numUsers*numUsers), nrow = numUsers, 
+                         dimnames = list(names(userSplits), names(userSplits)))
+for (tdidi in names(userSplits)) {
+    for (tdidj in as.character(userSplits[[tdidi]])) {
+        if (!is.na(tdidj))
+            userOverlapMat[tdidi, tdidj] = userOverlapMat[tdidi, tdidj] + 1
+    }
+}
+userOverlapMat[upper.tri(userOverlapMat)] &lt;- 0
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-30" style="background:;">
+  <hgroup>
+    <h2>Finding Best Friends</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">max(userOverlapMat)
+</code></pre>
+
+<pre><code>## [1] 20
+</code></pre>
+
+<pre><code class="r">which(userOverlapMat == max(userOverlapMat), arr.ind=T)
+</code></pre>
+
+<pre><code>##                                      row col
+## b0e0f1d4-087a-4449-b060-dee55f8df6a6 708  16
+## c90a1f5f-f97d-47f2-ab39-8696d37df2f4 796 708
+</code></pre>
+
+<pre><code class="r">length(unique(impData$site[impData$tdid == colnames(userOverlapMat)[708]]))
+</code></pre>
+
+<pre><code>## [1] 122
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-31" style="background:;">
+  <hgroup>
+    <h2>Finding Best Friends</h2>
+  </hgroup>
+  <article data-timings="">
+    <pre><code class="r">tail(sort(userOverlapMat), n = 40)
+</code></pre>
+
+<pre><code>##  [1]  5  5  5  5  5  5  5  5  5  6  6  6  6  6  6  6  6  6  6  6  6  6  6
+## [24]  6  6  6  6  6  7  7  7  7  8  9  9  9 11 13 20 20
+</code></pre>
+
+<pre><code class="r">which(userOverlapMat == 13, arr.ind=T)
+</code></pre>
+
+<pre><code>##                                       row col
+## ff8b8488-eec2-4cff-b12e-491cc6724daa 1003 707
+</code></pre>
+
+<pre><code class="r">c(length(unique(impData$site[impData$tdid == colnames(userOverlapMat)[1003]])),
+    length(unique(impData$site[impData$tdid == colnames(userOverlapMat)[707]])))
+</code></pre>
+
+<pre><code>## [1] 37 31
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-32" style="background:;">
+  <hgroup>
+    <h2>Finding Best Friends</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>Second-best guess for potential best friends:</p>
+
+<pre><code class="r">userOverlapMat[&quot;a469f9c5-616c-4a65-90db-476813e49cd5&quot;, &quot;2101ae87-c55f-432b-bda8-10641d74bef7&quot;]
+</code></pre>
+
+<pre><code>## [1] 5
+</code></pre>
+
+<pre><code class="r">length(unique(impData$site[impData$tdid == &quot;2101ae87-c55f-432b-bda8-10641d74bef7&quot;]))
+</code></pre>
+
+<pre><code>## [1] 11
+</code></pre>
+
+<pre><code class="r">length(unique(impData$site[impData$tdid == &quot;a469f9c5-616c-4a65-90db-476813e49cd5&quot;]))
+</code></pre>
+
+<pre><code>## [1] 9
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-33" style="background:;">
+  <hgroup>
+    <h2>Finding Best Friends</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>Confidence</p>
+
+<pre><code class="r"># Number of elements in the lower diagonal of the matrix:
+nrow(userOverlapMat) * (nrow(userOverlapMat)-1) / 2
+</code></pre>
+
+<pre><code>## [1] 504510
+</code></pre>
+
+<ul>
+<li>The users chosen have the 3rd highest number of overlapping sites (13), and are in the 99.9th percentile</li>
+<li>The pair is also in the 99.7th percentile for proportion of sites overlapping</li>
+<li>Because of many other factors that I have not quantified, I am only 75% confident that these users will be friends</li>
+<li>It is slightly lower for the second pair due to the smaller sample sizes. 65% confident.</li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-34" style="background:;">
+  <hgroup>
+    <h2>Thank you!</h2>
+  </hgroup>
+  <article data-timings="">
+    
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+    <slide class="backdrop"></slide>
+  </slides>
+  <div class="pagination pagination-small" id='io2012-ptoc' style="display:none;">
+    <ul>
+      <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=1 title='Getting and Cleaning Data'>
+         1
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=2 title='Format/Consolidate URL&#39;s'>
+         2
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=3 title='Site Classification'>
+         3
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=4 title='Site Classification'>
+         4
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=5 title='Site Classification'>
+         5
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=6 title='Transforming Timestamp Data'>
+         6
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=7 title='Transforming Timestamp Data'>
+         7
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=8 title='Transforming Timestamp Data'>
+         8
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=9 title='United States Regions'>
+         9
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=10 title='United States Regions'>
+         10
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=11 title='Summarizing the Impressions Per User'>
+         11
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=12 title='Summarize Sites by Favorite Movie Genre'>
+         12
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=13 title='Split Data by Whether Genre is Known/Unknown'>
+         13
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=14 title='Exploratory Analysis'>
+         14
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=15 title='Exploratory Analysis'>
+         15
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=16 title='Exploratory Analysis'>
+         16
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=17 title='Blinded Genre Guesses'>
+         17
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=18 title='BlindedGenre1: Action/Adventure'>
+         18
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=19 title='BlindedGenre2: Animated Movies'>
+         19
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=20 title='BlindedGenre3: Comedy'>
+         20
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=21 title='BlindedGenre4: Drama'>
+         21
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=22 title='BlindedGenre5: Documentaries'>
+         22
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=23 title='Clustering Web Sites by User Overlap'>
+         23
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=24 title='Clustering Web Sites by User Overlap'>
+         24
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=25 title='Building a Predictive Model'>
+         25
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=26 title='Building a Predictive Model'>
+         26
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=27 title='How Could the Model Be Improved?'>
+         27
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=28 title='Finding Best Friends'>
+         28
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=29 title='Finding Best Friends'>
+         29
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=30 title='Finding Best Friends'>
+         30
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=31 title='Finding Best Friends'>
+         31
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=32 title='Finding Best Friends'>
+         32
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=33 title='Finding Best Friends'>
+         33
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=34 title='Thank you!'>
+         34
+      </a>
+    </li>
+  </ul>
+  </div>  <!--[if IE]>
+    <script 
+      src="http://ajax.googleapis.com/ajax/libs/chrome-frame/1/CFInstall.min.js">  
+    </script>
+    <script>CFInstall.check({mode: 'overlay'});</script>
+  <![endif]-->
+</body>
+  <!-- Load Javascripts for Widgets -->
+  
+  <!-- LOAD HIGHLIGHTER JS FILES -->
+  <script src="libraries/highlighters/highlight.js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  <!-- DONE LOADING HIGHLIGHTER JS FILES -->
+   
+  </html>
